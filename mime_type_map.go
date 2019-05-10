@@ -1,8 +1,13 @@
 package mimetype
 
 import (
+	"errors"
+	"strings"
 	"sync"
 )
+
+// ErrInvalidPath indicates to the user that the string is missing an extension
+var ErrInvalidPath = errors.New("file name or file path does not contain a dot extension")
 
 type mappings struct {
 	mu   *sync.RWMutex
@@ -10,7 +15,7 @@ type mappings struct {
 }
 
 // Mappings can be used directly behing mutex safe getter
-var Mappings = mappings{
+var internalMappings = mappings{
 	mu: new(sync.RWMutex),
 	data: map[string]string{
 		".323":                    "text/h323",
@@ -630,9 +635,22 @@ var Mappings = mappings{
 
 // GetMimeTypeFromExtension pass in a file extension to get it's corrisponding mime type
 // note valid extensions start with a "."
-func (m mappings) GetMimeTypeFromExtension(extension string) (mimeType string, ok bool) {
-	m.mu.RLock()
-	mimeType, ok = m.data[extension]
-	m.mu.RUnlock()
+func GetMimeTypeFromExtension(extension string) (mimeType string, ok bool) {
+	internalMappings.mu.RLock()
+	mimeType, ok = internalMappings.data[extension]
+	internalMappings.mu.RUnlock()
 	return
+}
+
+// GetExtentionFromPath extracts the dot extention for a filename or filepath
+// to avoid extra checks be warned that something like
+// www.foobar.com/filemp4 would not be marked as an error
+// .com/filemp4 would be returned, however, if you passed it into the GetMimeTypeFromExtension
+// nothing would be found
+func GetExtentionFromPath(path string) (string, error) {
+	i := strings.LastIndex(path, ".")
+	if i == -1 {
+		return "", ErrInvalidPath
+	}
+	return path[i:], nil
 }
